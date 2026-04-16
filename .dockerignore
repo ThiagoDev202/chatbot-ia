@@ -1,0 +1,46 @@
+# Controle de versao
+.git
+.gitignore
+
+# Arquivos internos de agente/IDE
+.agents/
+.claude/
+
+# Documentacao interna (nao entra na imagem)
+CLAUDE.md
+PRD.md
+README.md
+
+# Secrets e configuracao local
+.env
+.env.example
+
+# Ambiente virtual Python
+.venv/
+
+# Caches e artefatos de build
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+dist/
+build/
+
+# Testes e cobertura (nao necessarios em producao)
+tests/
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Lint e type-check
+.ruff_cache/
+.mypy_cache/
+
+# Configuracoes de ferramentas locais
+.pre-commit-config.yaml
+
+# Arquivos Docker (evita contexto circular)
+Dockerfile
+docker-compose.yml

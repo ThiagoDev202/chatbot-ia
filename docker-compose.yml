@@ -1,0 +1,17 @@
+services:
+  api:
+    build: .
+    container_name: chatbot-ia-api
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
+      OPENAI_TEMPERATURE: ${OPENAI_TEMPERATURE:-0.3}
+      LANGCHAIN_TRACING_V2: ${LANGCHAIN_TRACING_V2:-true}
+      LANGCHAIN_API_KEY: ${LANGCHAIN_API_KEY:-}
+      LANGCHAIN_PROJECT: ${LANGCHAIN_PROJECT:-chatbot-ia}
+      APP_ENV: ${APP_ENV:-dev}
+    restart: unless-stopped
