@@ -235,10 +235,10 @@ async def test_session_not_found_without_message_uses_generic_detail(
     assert service is not None
 
 
-async def test_get_chat_service_builds_lazy_singleton(
+async def test_get_chat_service_reuses_store_and_chain_singletons(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """``get_chat_service`` deve construir o service sob demanda e reaproveitá-lo.
+    """``get_chat_service`` deve reaproveitar o store e o chain entre chamadas.
 
     Substitui ``build_chat_chain`` para não instanciar ``ChatOpenAI`` — o que
     exigiria ``OPENAI_API_KEY`` real no ambiente.
@@ -247,7 +247,6 @@ async def test_get_chat_service_builds_lazy_singleton(
 
     import app.chat.router as router_module
     from app.chat.chain import build_chat_chain as real_build_chat_chain
-    from app.chat.memory import ConversationStore
     from app.core.config import Settings
 
     def _fake_build_chain(
@@ -262,17 +261,84 @@ async def test_get_chat_service_builds_lazy_singleton(
         )
 
     monkeypatch.setattr(router_module, "build_chat_chain", _fake_build_chain)
-    monkeypatch.setattr(router_module, "ConversationStore", ConversationStore)
-    monkeypatch.setattr(router_module, "_service_instance", None)
+    monkeypatch.setattr(router_module, "_store", None)
+    monkeypatch.setattr(router_module, "_chain", None)
 
     service_a = router_module.get_chat_service()
     service_b = router_module.get_chat_service()
 
-    assert service_a is service_b
+    # O service é recriado (barato), mas store e chain devem ser reaproveitados.
+    assert service_a._store is service_b._store
+    assert service_a._chain is service_b._chain
     assert isinstance(service_a, ChatService)
 
-    # Limpeza: zera o singleton para não afetar testes subsequentes.
-    monkeypatch.setattr(router_module, "_service_instance", None)
+    # Limpeza: zera os singletons para não afetar testes subsequentes.
+    monkeypatch.setattr(router_module, "_store", None)
+    monkeypatch.setattr(router_module, "_chain", None)
+
+
+async def test_post_chat_returns_503_when_openai_key_missing(
+    async_client: AsyncClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Sem ``OPENAI_API_KEY`` configurada, POST /chat deve responder 503 — não 500.
+
+    Exercita o caminho real de construção do chain (sem override de dependência),
+    garantindo que a falha do ``ChatOpenAI.__init__`` é traduzida em
+    ``LLMUnavailableError`` pelo ``_NoOpChain`` antes da resposta HTTP.
+    """
+    import app.chat.router as router_module
+    from app.core.config import get_settings
+    from app.main import app as main_app
+
+    main_app.dependency_overrides.pop(router_module.get_chat_service, None)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    get_settings.cache_clear()
+    monkeypatch.setattr(router_module, "_store", None)
+    monkeypatch.setattr(router_module, "_chain", None)
+
+    try:
+        response = await async_client.post(
+            "/api/v1/chat",
+            json={"message": "oi"},
+        )
+
+        assert response.status_code == 503
+        body = response.json()
+        assert "LLM indisponível" in body["detail"]
+        assert "OPENAI_API_KEY" in body["detail"]
+    finally:
+        monkeypatch.setattr(router_module, "_store", None)
+        monkeypatch.setattr(router_module, "_chain", None)
+        get_settings.cache_clear()
+
+
+async def test_get_history_returns_404_without_openai_key(
+    async_client: AsyncClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """GET e DELETE devem funcionar mesmo sem ``OPENAI_API_KEY`` (não tocam o LLM)."""
+    import app.chat.router as router_module
+    from app.core.config import get_settings
+    from app.main import app as main_app
+
+    main_app.dependency_overrides.pop(router_module.get_chat_service, None)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    get_settings.cache_clear()
+    monkeypatch.setattr(router_module, "_store", None)
+    monkeypatch.setattr(router_module, "_chain", None)
+
+    try:
+        get_response = await async_client.get("/api/v1/chat/sessao-inexistente")
+        assert get_response.status_code == 404
+        assert "sessao-inexistente" in get_response.json()["detail"]
+
+        delete_response = await async_client.delete("/api/v1/chat/sessao-inexistente")
+        assert delete_response.status_code == 404
+    finally:
+        monkeypatch.setattr(router_module, "_store", None)
+        monkeypatch.setattr(router_module, "_chain", None)
+        get_settings.cache_clear()
 
 
 async def test_chatbot_error_base_class_returns_500(
