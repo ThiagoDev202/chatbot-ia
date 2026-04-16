@@ -1,0 +1,28 @@
+# Arquivos e pastas locais do agente/IDE
+.agents/
+.claude/
+
+# Documentação interna (não versionar)
+CLAUDE.md
+PRD.md
+
+# Python / uv / venv
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+
+# Testes e cobertura
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Lint / type-check caches
+.ruff_cache/
+.mypy_cache/
+
+# Secrets
+.env
