@@ -19,6 +19,7 @@ repos:
       - id: pytest-unit
         name: pytest (unit tests only)
         language: system
-        entry: uv run pytest -x -q tests/unit
+        # --no-cov: o hook e para ser rapido; cobertura e aferida no run completo.
+        entry: uv run pytest -x -q --no-cov tests/unit
         pass_filenames: false
         types: [python]
