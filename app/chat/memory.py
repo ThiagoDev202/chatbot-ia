@@ -21,6 +21,20 @@ class ConversationStore:
                 self._store[session_id] = InMemoryChatMessageHistory()
             return self._store[session_id]
 
+    def get_or_create_sync(self, session_id: str) -> InMemoryChatMessageHistory:
+        """Versão síncrona de ``get_or_create`` para uso como factory síncrona.
+
+        O ``RunnableWithMessageHistory`` do Langchain exige uma factory síncrona
+        ``(session_id: str) -> BaseChatMessageHistory``. Como o ``asyncio.Lock``
+        não pode ser adquirido fora de um contexto async, aqui acessamos o
+        dicionário diretamente — o chain não invoca o factory concorrentemente
+        para o mesmo ``session_id`` e a criação de um ``dict`` entry é atômica
+        o suficiente para o MVP in-memory.
+        """
+        if session_id not in self._store:
+            self._store[session_id] = InMemoryChatMessageHistory()
+        return self._store[session_id]
+
     async def get(self, session_id: str) -> InMemoryChatMessageHistory:
         """Retorna o histórico da sessão; levanta SessionNotFoundError se inexistente."""
         async with self._lock:

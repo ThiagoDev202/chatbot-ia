@@ -92,3 +92,26 @@ async def test_concurrent_get_or_create_returns_same_instance(
     results = await asyncio.gather(*[store.get_or_create(session_id) for _ in range(n)])
     first = results[0]
     assert all(h is first for h in results), "Todas as tarefas devem retornar a mesma instância"
+
+
+def test_get_or_create_sync_creates_new_session(store: ConversationStore) -> None:
+    """A versão síncrona deve criar uma sessão nova com histórico vazio."""
+    history = store.get_or_create_sync("sessao-sync")
+    assert history is not None
+    assert history.messages == []
+
+
+def test_get_or_create_sync_is_idempotent_and_shares_with_async(
+    store: ConversationStore,
+) -> None:
+    """A versão síncrona deve devolver a mesma instância da versão async."""
+    sync_history = store.get_or_create_sync("sessao-compartilhada")
+    sync_history.add_user_message("mensagem via sync")
+
+    # Verifica que a versão async enxerga a mesma estrutura.
+    async def _check_async() -> None:
+        async_history = await store.get_or_create("sessao-compartilhada")
+        assert async_history is sync_history
+        assert len(async_history.messages) == 1
+
+    asyncio.run(_check_async())
